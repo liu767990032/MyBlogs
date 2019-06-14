@@ -4,7 +4,7 @@ yum -y install gcc gcc-c++；
 yum -y install pcre-devel zlib-devel openssl-devel
 ```
 
-2.下载nginx,网址:http://nginx.org/en/download.html,然后上传到Linux
+2.下载nginx,网址: http://nginx.org/en/download.html ,然后上传到Linux
 
 3.tar -zxvf解压压缩包
 
@@ -79,5 +79,6 @@ server {
 6.在nginx根目录创建yzh1989文件夹,里面创建个index.html就可以了,然后执行./nginx 
    -s reload,这是部署静态网页项目
 
-7.打开网页[(点这里)](www.yzh1989.com)即可访问我的静态页面   
+7.打开网页[(点这里)](http://yzh1989.com)即可访问我的静态页面   
+
 
