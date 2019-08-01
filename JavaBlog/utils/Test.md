@@ -394,13 +394,21 @@ public class SearchManagerImpl implements SearchManager{
 					jsonMb39.put("detail_show_flag", detail_show_flag);
 					jsonMb39.put("target_level", targetLevel);
 					jsonMb39.put("target_id", target_id);
+					if (CollectionUtils.isNotEmpty(commentList)) {
+						jsonMb39.put("commentList", JSON.toJSONString(commentList));
+					}
+					jsonMb39.put("isCollect",isCollect);
+					jsonMb39.put("targetImgPath",targetImgPath);
+                    if (StringUtils.isNotBlank(specialAttr)){
+                        jsonMb39.put("specialAttr",specialAttr);
+                    }
 					return jsonMb39.toString();
 				} else if (confList.get(0).get("TEMP_ID").equals("47")) {
 					MB_47_TempServiceImpl mb_47Data = new MB_47_TempServiceImpl(dao, tempUtil);
 					JSONObject jsonMb47 = mb_47Data.getScoreBoard(report_id,target_id, prov_id, area_id, month, type,reportDataTable, commonDimension);
 					jsonMb47.put("report_id", reportId);
 					jsonMb47.put("area_name", areaName);
-					jsonMb47.put("report_flag", report_flag);
+				    jsonMb47.put("report_flag", report_flag);
 					jsonMb47.put("head_title", headName);
 					jsonMb47.put("month_id", monthT);
 					jsonMb47.put("accountName", accountName);
