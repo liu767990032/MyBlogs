@@ -179,6 +179,54 @@ public class SearchManagerImpl implements SearchManager{
 		String headName = null;
 		String unit = null;
 		try {
+			//通用维度需求
+			Map<String,String>commonDimensionMap=tempUtil.getCommonDimensionMap(report_id, commonDimension);
+			//包装维度参数为特殊参数获取评论数据
+			String specialAttr = null;
+			if (commonDimensionMap == null) {
+				specialAttr = "";
+			} else {
+				JSONObject specialAttrObj = new JSONObject();
+				if (StringUtils.isBlank(commonDimension) || "null".equals(StringUtils.trim(commonDimension))) {
+					specialAttrObj.put("commonDimension", "{\"data\":[{\"key\":\"" + commonDimensionMap.get("commonDimension") + "\"},{\"key\":\"" + commonDimensionMap.get("commonDimension") + "\"}]}");
+				} else {
+					JSONObject commonDimensionObj = JSONObject.fromObject(commonDimension);
+					JSONArray commonDimensionData = commonDimensionObj.getJSONArray("data");
+					if (commonDimensionData == null || commonDimensionData.size() == 0) {
+						specialAttrObj.put("commonDimension", "{\"data\":[{\"key\":\"" + commonDimensionMap.get("commonDimension") + "\"},{\"key\":\"" + commonDimensionMap.get("commonDimension") + "\"}]}");
+					} else {
+						JSONObject commonDimensionData0 = commonDimensionData.getJSONObject(0);
+						JSONObject commonDimensionData1 = null;
+						try {
+							commonDimensionData1 = commonDimensionData.getJSONObject(1);
+						} catch (Exception e) {
+							commonDimensionData1 = commonDimensionData0;
+						}
+						commonDimensionData.clear();
+						commonDimensionData.add(commonDimensionData0);
+						commonDimensionData.add(commonDimensionData1);
+						commonDimensionObj.put("data", commonDimensionData);
+						specialAttrObj.put("commonDimension", commonDimensionObj.toString());
+					}
+				}
+				specialAttr = specialAttrObj.toString();
+			}
+			//update by gongsq  评论和关注
+			String mainTargetId=target_id;
+			List<CommunityComment> commentList = null;
+			List<Map<String, Object>> isCollectList = communityDao.getTargetIsCollect(userId, report_id, type, mainTargetId, prov_id, area_id);
+			String isCollect="0";
+			if (CollectionUtils.isNotEmpty(isCollectList)) {
+				isCollect="1";
+			}
+			//根据报表id查找指标的背景图片,0是没有,否则返回数据
+			String targetImgPath="0";
+			if (StringUtils.isNotBlank(report_id)){
+				List<Map<String, Object>> targetImgPathList = scoreboardDao.getTargetImgPath(report_id);
+				if (CollectionUtils.isNotEmpty(targetImgPathList)){
+					targetImgPath= (String) targetImgPathList.get(0).get("IMG_PATH");
+				}
+			}
 			// 获取省分个性化指标
 			System.out.println("report_id==" + report_id);
 			Map<String, Object> specialMap = dao.querSpecialReportConfig(
@@ -208,19 +256,16 @@ public class SearchManagerImpl implements SearchManager{
 						j.put("report_level", "5");
 						j.put("code", "1");
 						month=data.getString("month_id");
-						//update by gongsq  评论和关注
-						String mainTargetId=target_id;
-						List<CommunityComment> commentList = communityService.getTargetCommentList(report_id, type, mainTargetId, month, prov_id, area_id, "" ,userId);
+						j.put("prov_id", prov_id);
+						j.put("area_id", area_id);
+						commentList = communityService.getTargetCommentList(report_id, type, mainTargetId, month, prov_id, area_id, specialAttr ,userId);
 						if (CollectionUtils.isNotEmpty(commentList)) {
 							j.put("commentList", JSON.toJSONString(commentList));
 						}
-						j.put("prov_id", prov_id);
-						j.put("area_id", area_id);
-						List<Map<String, Object>> isCollect = communityDao.getTargetIsCollect(userId, report_id, type, mainTargetId, prov_id, area_id);
-						if (CollectionUtils.isNotEmpty(isCollect) && isCollect.size() > 0) {
-							j.put("isCollect", "1");
-						} else {
-							j.put("isCollect", "0");
+						j.put("isCollect",isCollect);
+						j.put("targetImgPath",targetImgPath);
+						if (StringUtils.isNotBlank(specialAttr)){
+							j.put("specialAttr",specialAttr);
 						}
 						if (data.containsKey("title_name")) {
 							j.put("title_name", data.getString("title_name"));
@@ -277,25 +322,11 @@ public class SearchManagerImpl implements SearchManager{
 					accountName = dao.getWeekAccountName(month);
 				}
 			}
-			//update by gongsq  评论和关注
-			String mainTargetId=target_id;
-			List<CommunityComment> commentList = communityService.getTargetCommentList(report_id, type, mainTargetId, month, prov_id, area_id, "" , userId);
-			if (CollectionUtils.isNotEmpty(commentList)) {
-				j.put("commentList", JSON.toJSONString(commentList));
-			}
-
-			List<Map<String, Object>> isCollect = communityDao.getTargetIsCollect(userId, report_id, type, mainTargetId, prov_id, area_id);
-			if (CollectionUtils.isNotEmpty(isCollect) && isCollect.size() > 0) {
-				j.put("isCollect", "1");
-			} else {
-				j.put("isCollect", "0");
-			}
+            commentList = communityService.getTargetCommentList(report_id, type, mainTargetId, month, prov_id, area_id, specialAttr , userId);
 			/** 增加显示区域名称 */
 			String areaName = dao.getSingleAreaName(prov_id, area_id);
 			List<Map<String, Object>> targetValueList = null;
 			String targetsStr = "";
-			//通用维度需求
-			Map<String,String>commonDimensionMap=tempUtil.getCommonDimensionMap(report_id, commonDimension);
 			if (confList != null && confList.size() > 0) {
 				for (int i = 0; i < confList.size(); i++) {
 					targetsStr += "'"+ (String) confList.get(i).get("TARGET_CODE") + "'"+ ",";
@@ -376,6 +407,14 @@ public class SearchManagerImpl implements SearchManager{
 					jsonMb47.put("detail_show_flag", detail_show_flag);
 					jsonMb47.put("target_level", targetLevel);
 					jsonMb47.put("target_id", target_id);
+					if (CollectionUtils.isNotEmpty(commentList)) {
+						jsonMb47.put("commentList", JSON.toJSONString(commentList));
+					}
+					jsonMb47.put("isCollect",isCollect);
+					jsonMb47.put("targetImgPath",targetImgPath);
+                    if (StringUtils.isNotBlank(specialAttr)){
+                        jsonMb47.put("specialAttr",specialAttr);
+                    }
 					return jsonMb47.toString();
 				} else if (confList.get(0).get("TEMP_ID").equals("40")) {
 					MB_40_TempServiceImpl mb_40Data = new MB_40_TempServiceImpl(dao, tempUtil);
@@ -389,6 +428,14 @@ public class SearchManagerImpl implements SearchManager{
 					jsonMb40.put("detail_show_flag", detail_show_flag);
 					jsonMb40.put("target_level", targetLevel);
 					jsonMb40.put("target_id", target_id);
+					if (CollectionUtils.isNotEmpty(commentList)) {
+						jsonMb40.put("commentList", JSON.toJSONString(commentList));
+					}
+					jsonMb40.put("isCollect",isCollect);
+					jsonMb40.put("targetImgPath",targetImgPath);
+                    if (StringUtils.isNotBlank(specialAttr)){
+                        jsonMb40.put("specialAttr",specialAttr);
+                    }
 					return jsonMb40.toString();
 				} else if (confList.get(0).get("TEMP_ID").equals("42")) {
 					MB_42_TempServiceImpl mb_42Data = new MB_42_TempServiceImpl(dao, tempUtil);
@@ -402,6 +449,14 @@ public class SearchManagerImpl implements SearchManager{
 					jsonMb42.put("detail_show_flag", detail_show_flag);
 					jsonMb42.put("target_level", targetLevel);
 					jsonMb42.put("target_id", target_id);
+					if (CollectionUtils.isNotEmpty(commentList)) {
+						jsonMb42.put("commentList", JSON.toJSONString(commentList));
+					}
+					jsonMb42.put("isCollect",isCollect);
+					jsonMb42.put("targetImgPath",targetImgPath);
+                    if (StringUtils.isNotBlank(specialAttr)){
+                        jsonMb42.put("specialAttr",specialAttr);
+                    }
 					return jsonMb42.toString();
 				} else if (confList.get(0).get("TEMP_ID").equals("45")) {
 					MB_45_TempServiceImpl mb_45Data = new MB_45_TempServiceImpl(dao, tempUtil);
@@ -415,6 +470,14 @@ public class SearchManagerImpl implements SearchManager{
 					jsonMb42.put("detail_show_flag", detail_show_flag);
 					jsonMb42.put("target_level", targetLevel);
 					jsonMb42.put("target_id", target_id);
+					if (CollectionUtils.isNotEmpty(commentList)) {
+						jsonMb42.put("commentList", JSON.toJSONString(commentList));
+					}
+					jsonMb42.put("isCollect",isCollect);
+					jsonMb42.put("targetImgPath",targetImgPath);
+                    if (StringUtils.isNotBlank(specialAttr)){
+                        jsonMb42.put("specialAttr",specialAttr);
+                    }
 					return jsonMb42.toString();
 				} else if (confList.get(0).get("TEMP_ID").equals("43")&& ConstantMe.REPORT_TYPE_D.equals(type)) {
 					MB_43_TempServiceImpl mb_43Data = new MB_43_TempServiceImpl(dao, tempUtil);
@@ -428,6 +491,14 @@ public class SearchManagerImpl implements SearchManager{
 					jsonMb43.put("detail_show_flag", detail_show_flag);
 					jsonMb43.put("target_level", targetLevel);
 					jsonMb43.put("target_id", target_id);
+					if (CollectionUtils.isNotEmpty(commentList)) {
+						jsonMb43.put("commentList", JSON.toJSONString(commentList));
+					}
+					jsonMb43.put("isCollect",isCollect);
+					jsonMb43.put("targetImgPath",targetImgPath);
+                    if (StringUtils.isNotBlank(specialAttr)){
+                        jsonMb43.put("specialAttr",specialAttr);
+                    }
 					return jsonMb43.toString();
 				} else if (confList.get(0).get("TEMP_ID").equals("46")) {
 					MB_46_TempServiceImpl mb_46Data = new MB_46_TempServiceImpl(dao, tempUtil);
@@ -441,6 +512,14 @@ public class SearchManagerImpl implements SearchManager{
 					jsonMb40.put("detail_show_flag", detail_show_flag);
 					jsonMb40.put("target_level", targetLevel);
 					jsonMb40.put("target_id", target_id);
+					if (CollectionUtils.isNotEmpty(commentList)) {
+						jsonMb40.put("commentList", JSON.toJSONString(commentList));
+					}
+					jsonMb40.put("isCollect",isCollect);
+					jsonMb40.put("targetImgPath",targetImgPath);
+                    if (StringUtils.isNotBlank(specialAttr)){
+                        jsonMb40.put("specialAttr",specialAttr);
+                    }
 					return jsonMb40.toString();
 				} else if (confList.get(0).get("TEMP_ID").equals("44")) {
 					MB_44_TempServiceImpl mb_44Data = new MB_44_TempServiceImpl(dao, tempUtil);
@@ -454,6 +533,14 @@ public class SearchManagerImpl implements SearchManager{
 					jsonMb40.put("detail_show_flag", detail_show_flag);
 					jsonMb40.put("target_level", targetLevel);
 					jsonMb40.put("target_id", target_id);
+					if (CollectionUtils.isNotEmpty(commentList)) {
+						jsonMb40.put("commentList", JSON.toJSONString(commentList));
+					}
+					jsonMb40.put("isCollect",isCollect);
+					jsonMb40.put("targetImgPath",targetImgPath);
+                    if (StringUtils.isNotBlank(specialAttr)){
+                        jsonMb40.put("specialAttr",specialAttr);
+                    }
 					return jsonMb40.toString();
 				}
 			}
@@ -462,15 +549,14 @@ public class SearchManagerImpl implements SearchManager{
 			j.put("temp_id", tempCode);
 			j.put("area_name", areaName);
 			j.put("report_id", reportId);
-			//根据报表id查找指标的背景图片,0是没有,否则返回数据
-			String targetImgPath="0";
-			if (StringUtils.isNotBlank(reportId)){
-				List<Map<String, Object>> targetImgPathList = scoreboardDao.getTargetImgPath(reportId);
-				if (CollectionUtils.isNotEmpty(targetImgPathList)){
-					targetImgPath= (String) targetImgPathList.get(0).get("IMG_PATH");
-				}
+			if (CollectionUtils.isNotEmpty(commentList)) {
+				j.put("commentList", JSON.toJSONString(commentList));
 			}
+			j.put("isCollect",isCollect);
 			j.put("targetImgPath",targetImgPath);
+            if (StringUtils.isNotBlank(specialAttr)){
+                j.put("specialAttr",specialAttr);
+            }
 			j.put("detail_show_flag", detail_show_flag);
 			j.put("target_level", targetLevel);
 			j.put("target_name", targetName == null ? "" : targetName);
