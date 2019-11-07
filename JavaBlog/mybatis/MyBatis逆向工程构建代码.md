@@ -138,3 +138,12 @@ public class GeneratorSqlMap {
 4.注意我们的逆向工程是依赖数据库中的表,所以咱们首先要把表建起来,在运行逆向工程
 cessssssssss
 222
+
+
+
+
+
+
+
+
+111111111
